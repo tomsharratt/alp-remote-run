@@ -1,10 +1,13 @@
 package main
 
 import (
-	"errors"
-	"fmt"
-	"log"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/tomsharratt/alp/evaluator"
+	"github.com/tomsharratt/alp/lexer"
+	"github.com/tomsharratt/alp/object"
+	"github.com/tomsharratt/alp/parser"
 )
 
 type ExecuteRequest struct {
@@ -17,27 +20,45 @@ type File struct {
 	Content string
 }
 
-func execute(w http.ResponseWriter, req *http.Request) {
-	var er ExecuteRequest
+type ExecuteRepsonse struct {
+	Output string   `json:"output,omitempty"`
+	Errors []string `json:"errors,omitempty"`
+}
 
-	err := decodeJSONBody(w, req, &er)
-	if err != nil {
-		var mr *malformedRequest
-		if errors.As(err, &mr) {
-			http.Error(w, mr.msg, mr.status)
-		} else {
-			log.Println(err.Error())
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+func handleExecute(c *gin.Context) {
+	var req ExecuteRequest
+	var res ExecuteRepsonse
+
+	c.BindJSON(&req)
+
+	if len(req.Files) == 0 {
+		res.Errors = append(res.Errors, "no files provided.")
+		c.JSON(http.StatusBadRequest, res)
 		return
 	}
 
-	fmt.Fprintf(w, "ExecutionRequest: %+v", er)
+	entry := req.Files[0]
+
+	l := lexer.New(entry.Content)
+	p := parser.New(l)
+
+	program := p.ParseProgram()
+	if len(p.Errors()) != 0 {
+		res.Errors = append(res.Errors, p.Errors()...)
+		c.JSON(http.StatusBadRequest, res)
+		return
+	}
+
+	evaluated := evaluator.Eval(program, object.NewEnvironment())
+	res.Output = evaluated.Inspect()
+
+	c.JSON(http.StatusOK, res)
 }
 
 func main() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/execute", execute)
+	r := gin.Default()
 
-	http.ListenAndServe(":8080", mux)
+	r.POST("/execute", handleExecute)
+
+	r.Run()
 }

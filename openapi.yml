@@ -1,0 +1,55 @@
+openapi: 3.0.0
+info:
+  title: alp-remote-run
+  description: Remote code execution for the alp programming language.
+  version: 0.0.1
+
+paths:
+  /execute:
+    post:
+      summary: Executes the given code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: File name.
+                      path:
+                        type: string
+                        description: File path relative to entry point.
+                      content:
+                        type: string
+                        description: File contents as a string.
+      responses:
+        '200':
+          description: Returns the final output of the program.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  output:
+                    type: string
+                    description: Final output of the program executed.
+        '400':
+          description: Returns the errors encountered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    description: List of errors encourtered during execution.
+                    items:
+                      type: string
+                      description: One specific error encountered.
